@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>AI Buddy</title>
+<style>
+  @font-face {
+    font-family: 'Nunito';
+    src: url('fonts/Nunito-VariableFont_wght.ttf');
+    font-weight: 100 900;
+  }
+  @font-face {
+    font-family: 'Nunito Sans';
+    src: url('fonts/NunitoSans-VariableFont_wght.ttf');
+    font-weight: 100 900;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --lime:      #C8F135;
+    --lime-dark: #A8CC1A;
+    --lime-glow: rgba(200, 241, 53, 0.35);
+    --dark:      #1A1A2E;
+    --panel-bg:  #FAFFF0;
+    --text:      #2D2D2D;
+    --subtext:   #888;
+    --border:    #E8F5B0;
+    --white:     #FFFFFF;
+    --shadow:    rgba(0,0,0,0.12);
+  }
+
+  html, body {
+    background: transparent;
+    overflow: hidden;
+    font-family: 'Nunito', sans-serif;
+    color: var(--text);
+    user-select: none;
+    width: 100vw;
+    height: 100vh;
+  }
+
+  /* ── STAR CHARACTER ── */
+  #star {
+    position: fixed;
+    bottom: 16px; left: 16px;
+    width: 52px; height: 52px;
+    cursor: pointer; z-index: 100;
+    -webkit-app-region: no-drag;
+  }
+  #star svg {
+    width: 52px; height: 52px;
+    filter: drop-shadow(0 4px 12px var(--lime-glow));
+    transition: transform 0.2s ease, filter 0.2s ease;
+  }
+  #star:hover svg {
+    transform: scale(1.12) rotate(15deg);
+    filter: drop-shadow(0 6px 18px var(--lime-glow));
+  }
+  #star.active svg { transform: scale(1.08) rotate(10deg); }
+  #star::before {
+    content: '';
+    position: absolute; inset: -6px;
+    border-radius: 50%;
+    border: 2px solid var(--lime);
+    opacity: 0; transform: scale(0.8);
+    transition: all 0.3s;
+  }
+  #star.thinking::before, #star.working::before {
+    opacity: 1; transform: scale(1);
+    animation: ringPulse 1.2s ease infinite;
+  }
+  @keyframes ringPulse {
+    0%, 100% { transform: scale(1); opacity: 0.8; }
+    50%       { transform: scale(1.2); opacity: 0.2; }
+  }
+  #star-dot {
+    position: absolute;
+    bottom: 2px; right: 2px;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: #B5EAD7;
+    border: 2px solid white;
+    transition: background 0.3s;
+  }
+  #star-dot.thinking { background: #FFB347; }
+  #star-dot.working  { background: var(--lime-dark); animation: dotBlink 0.6s infinite; }
+  @keyframes dotBlink {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.3; }
+  }
+
+  /* ── MIC BUTTON ── */
+  #mic-btn {
+    width: 32px; height: 32px; border-radius: 50%; border: none;
+    background: #F0F0F0; color: var(--dark); font-size: 14px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s; flex-shrink: 0;
+  }
+  #mic-btn:hover { background: var(--border); }
+  #mic-btn.listening { background: #FFB347; animation: dotBlink 0.6s infinite; }
+
+  /* ── PANEL ── */
+  #panel {
+    position: fixed;
+    bottom: 10px; left: 78px;
+    width: 320px; height: 440px;
+    background: var(--panel-bg);
+    border-radius: 20px;
+    border: 1.5px solid var(--border);
+    box-shadow: 0 8px 32px var(--shadow), 0 0 0 1px rgba(200,241,53,0.1);
+    display: flex; flex-direction: column;
+    overflow: hidden; opacity: 0;
+    transform: translateX(-12px) scale(0.96);
+    transform-origin: left bottom;
+    pointer-events: none;
+    transition: opacity 0.22s ease, transform 0.22s ease;
+  }
+  #panel.open {
+    opacity: 1; transform: translateX(0) scale(1);
+    pointer-events: all;
+  }
+  /* Speech bubble tail */
+  #panel::before {
+    content: '';
+    position: absolute;
+    bottom: 22px; left: -8px;
+    width: 16px; height: 16px;
+    background: var(--panel-bg);
+    border-left: 1.5px solid var(--border);
+    border-bottom: 1.5px solid var(--border);
+    transform: rotate(45deg);
+    border-radius: 0 0 0 3px;
+  }
+
+  /* Panel header */
+  .panel-header {
+    padding: 12px 14px 10px;
+    background: var(--white);
+    border-bottom: 1.5px solid var(--border);
+    display: flex; align-items: center; gap: 9px;
+    flex-shrink: 0;
+    -webkit-app-region: drag;
+  }
+  .header-star { width: 28px; height: 28px; flex-shrink: 0; }
+  .header-star svg { width: 28px; height: 28px; }
+  .header-info { flex: 1; }
+  .header-name { font-weight: 800; font-size: 13.5px; color: var(--text); letter-spacing: -0.3px; }
+  .header-status {
+    font-size: 10.5px; color: var(--subtext); font-weight: 600;
+    display: flex; align-items: center; gap: 4px; margin-top: 1px;
+  }
+  .h-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #B5EAD7; transition: background 0.3s;
+  }
+  .h-dot.thinking { background: #FFB347; animation: dotBlink 1s infinite; }
+  .h-dot.working  { background: var(--lime-dark); animation: dotBlink 0.6s infinite; }
+  .header-btns { display: flex; gap: 4px; -webkit-app-region: no-drag; }
+  .hbtn {
+    width: 22px; height: 22px; border-radius: 50%; border: none;
+    background: #F0F0F0; color: var(--subtext); font-size: 11px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s; font-family: 'Nunito', sans-serif; font-weight: 700;
+  }
+  .hbtn:hover { background: var(--lime); color: var(--dark); }
+
+  /* ── CONTENT AREA ── */
+  #content-area { flex: 1; overflow: hidden; position: relative; }
+  .view {
+    position: absolute; inset: 0;
+    display: none; flex-direction: column; overflow: hidden;
+  }
+  .view.active { display: flex; }
+
+  /* CHAT VIEW */
+  #chat-messages {
+    flex: 1; overflow-y: auto;
+    padding: 10px 10px 6px;
+    display: flex; flex-direction: column; gap: 7px;
+    scroll-behavior: smooth;
+  }
+  #chat-messages::-webkit-scrollbar { width: 3px; }
+  #chat-messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  .msg {
+    max-width: 85%; padding: 8px 12px; border-radius: 14px;
+    font-size: 12.5px; line-height: 1.55;
+    font-family: 'Nunito Sans', sans-serif; font-weight: 500;
+    animation: msgIn 0.18s ease;
+  }
+  @keyframes msgIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .msg.bot {
+    background: var(--white); border: 1px solid var(--border);
+    border-radius: 4px 14px 14px 14px; align-self: flex-start;
+  }
+  .msg.user {
+    background: var(--lime); color: var(--dark);
+    border-radius: 14px 4px 14px 14px; align-self: flex-end; font-weight: 600;
+  }
+  .msg.typing {
+    background: var(--white); border: 1px solid var(--border);
+    border-radius: 4px 14px 14px 14px; align-self: flex-start; padding: 10px 13px;
+  }
+  .typing-dots { display: flex; gap: 4px; align-items: center; }
+  .typing-dots span {
+    width: 5px; height: 5px; border-radius: 50%; background: var(--subtext);
+    animation: bounce 1.2s infinite;
+  }
+  .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce {
+    0%, 60%, 100% { transform: translateY(0); }
+    30%           { transform: translateY(-4px); }
+  }
+
+  /* PERSISTENT INPUT */
+  .chat-input-row {
+    padding: 7px 9px 10px; display: flex; gap: 6px; align-items: flex-end;
+    background: var(--white); border-top: 1.5px solid var(--border); flex-shrink: 0;
+  }
+  #chat-input {
+    flex: 1; border: 1.5px solid var(--border); border-radius: 12px;
+    padding: 7px 11px; font-size: 12.5px;
+    font-family: 'Nunito Sans', sans-serif; font-weight: 500;
+    color: var(--text); background: var(--panel-bg);
+    resize: none; outline: none; min-height: 34px; max-height: 75px;
+    transition: border-color 0.15s;
+  }
+  #chat-input:focus { border-color: var(--lime-dark); }
+  #chat-input::placeholder { color: #bbb; }
+  #send-btn {
+    width: 32px; height: 32px; border-radius: 50%; border: none;
+    background: var(--lime); color: var(--dark); font-size: 13px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: transform 0.15s, box-shadow 0.15s; flex-shrink: 0;
+    box-shadow: 0 2px 8px var(--lime-glow); font-weight: 800;
+  }
+  #send-btn:hover { transform: scale(1.1); box-shadow: 0 4px 14px var(--lime-glow); }
+  #send-btn:active { transform: scale(0.93); }
+
+  /* STATUS VIEW */
+  #view-status {
+    align-items: center; justify-content: center;
+    gap: 10px; padding: 20px; text-align: center;
+  }
+  .status-icon { font-size: 34px; }
+  .status-title { font-size: 14px; font-weight: 800; color: var(--text); }
+  .status-detail {
+    font-size: 12px; color: var(--subtext); font-weight: 500;
+    font-family: 'Nunito Sans', sans-serif;
+  }
+  .status-bar-wrap {
+    width: 100%; height: 5px; background: var(--border);
+    border-radius: 5px; overflow: hidden; margin-top: 4px;
+  }
+  .status-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--lime), var(--lime-dark));
+    border-radius: 5px; width: 0%; transition: width 0.4s ease;
+    animation: shimmer 1.5s infinite;
+  }
+  @keyframes shimmer {
+    0%, 100% { filter: brightness(1); }
+    50%       { filter: brightness(1.2); }
+  }
+
+  /* CUSTOM VIEW */
+  #view-custom { padding: 14px; overflow-y: auto; }
+  #view-custom::-webkit-scrollbar { width: 3px; }
+  #view-custom::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* Footer tabs */
+  .panel-footer {
+    padding: 5px 8px 7px; display: flex; gap: 4px;
+    background: var(--white); border-top: 1.5px solid var(--border); flex-shrink: 0;
+  }
+  .view-btn {
+    flex: 1; padding: 5px 0; font-size: 10.5px; font-weight: 700;
+    font-family: 'Nunito', sans-serif; color: var(--subtext);
+    background: none; border: none; border-radius: 7px;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .view-btn.active { background: var(--lime); color: var(--dark); }
+  .view-btn:hover:not(.active) { background: var(--border); }
+</style>
+</head>
+<body>
+
+<!-- STAR -->
+<div id="star" onclick="togglePanel()">
+  <svg viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M26 4 L29.8 16.2 L42.6 13.4 L34.8 23.6 L44.6 31.8 L32 31.2 L28.4 43.6 L22 33 L10.4 38.2 L16.2 27 L5.4 20.2 L17.8 19.6 Z"
+      fill="#C8F135" stroke="#A8CC1A" stroke-width="1.5" stroke-linejoin="round"/>
+    <circle cx="21" cy="26" r="2" fill="#2D2D2D"/>
+    <circle cx="31" cy="26" r="2" fill="#2D2D2D"/>
+    <path d="M21 32 Q26 36 31 32" stroke="#2D2D2D" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+    <circle cx="33" cy="16" r="2.5" fill="white" opacity="0.5"/>
+  </svg>
+  <div id="star-dot"></div>
+</div>
+
+<!-- PANEL -->
+<div id="panel">
+  <div class="panel-header">
+    <div class="header-star">
+      <svg viewBox="0 0 28 28" fill="none">
+        <path d="M14 2 L16.5 9.5 L24 8 L19 14 L24 20 L16.5 18.5 L14 26 L11.5 18.5 L4 20 L9 14 L4 8 L11.5 9.5 Z"
+          fill="#C8F135" stroke="#A8CC1A" stroke-width="1" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <div class="header-info">
+      <div class="header-name">AI Buddy</div>
+      <div class="header-status">
+        <div class="h-dot" id="h-dot"></div>
+        <span id="h-status-text">Ready</span>
+      </div>
+    </div>
+    <div class="header-btns">
+      <button class="hbtn" onclick="togglePanel()">−</button>
+      <button class="hbtn" onclick="closeApp()">✕</button>
+    </div>
+  </div>
+
+  <div id="content-area">
+
+    <!-- CHAT -->
+    <div class="view active" id="view-chat">
+      <div id="chat-messages">
+        <div class="msg bot">Hey! ✨ I'm your AI Buddy. What would you like to do?</div>
+      </div>
+    </div>
+
+    <!-- STATUS -->
+    <div class="view" id="view-status">
+      <div class="status-icon" id="status-icon">⚙️</div>
+      <div class="status-title" id="status-title">Working...</div>
+      <div class="status-detail" id="status-detail">Please wait</div>
+      <div class="status-bar-wrap">
+        <div class="status-bar" id="status-bar"></div>
+      </div>
+    </div>
+
+    <!-- CUSTOM — Django pushes HTML here -->
+    <div class="view" id="view-custom"></div>
+
+  </div>
+
+  <!-- PERSISTENT INPUT — always visible across all views -->
+  <div class="chat-input-row" id="persistent-input">
+    <textarea id="chat-input" placeholder="Ask me anything…" rows="1"
+      onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+    <button id="mic-btn" onclick="toggleVoice()">🎤</button>
+    <button id="send-btn" onclick="sendMessage()">➤</button>
+  </div>
+
+  <div class="panel-footer">
+    <button class="view-btn active" id="btn-chat"   onclick="switchView('chat',   this)">💬 Chat</button>
+    <button class="view-btn"        id="btn-status" onclick="switchView('status', this)">⚡ Activity</button>
+    <button class="view-btn"        id="btn-custom" onclick="switchView('custom', this)">🧩 Panel</button>
+  </div>
+</div>
+
+<script>
+  const { ipcRenderer } = window;
+  let isOpen = false;
+
+  // ── WEBSOCKET ──
+  let ws;
+  function connectWS() {
+    ws = new WebSocket('ws://127.0.0.1:8000/ws/agent/');
+    ws.onopen    = () => setStatus('idle', 'Ready');
+    ws.onclose   = () => { setStatus('idle', 'Disconnected'); setTimeout(connectWS, 3000); };
+    ws.onerror   = () => {};
+    ws.onmessage = (e) => handleWSMessage(JSON.parse(e.data));
+  }
+  connectWS();
+
+  // ── HANDLE INCOMING MESSAGES FROM DJANGO ──
+  function handleWSMessage({ type, data }) {
+    if (type === 'chat') {
+      removeTyping();
+      appendMessage(data.text, 'bot');
+      setStatus('idle', 'Ready');
+      switchView('chat', document.getElementById('btn-chat'));
+
+    } else if (type === 'status') {
+      setStatus(data.state || 'working', data.text || 'Working...');
+      document.getElementById('status-icon').textContent   = data.icon    || '⚙️';
+      document.getElementById('status-title').textContent  = data.title   || 'Working...';
+      document.getElementById('status-detail').textContent = data.detail  || '';
+      document.getElementById('status-bar').style.width    = (data.progress || 60) + '%';
+      switchView('status', document.getElementById('btn-status'));
+
+    } else if (type === 'custom') {
+      document.getElementById('view-custom').innerHTML = data.html;
+      switchView('custom', document.getElementById('btn-custom'));
+    }
+  }
+
+  // ── PANEL TOGGLE ──
+  function togglePanel() {
+    isOpen = !isOpen;
+    const panel = document.getElementById('panel');
+    const star  = document.getElementById('star');
+    if (isOpen) {
+      panel.classList.add('open');
+      star.classList.add('active');
+      ipcRenderer.send('resize-window', { width: 415, height: 470 });
+      setTimeout(() => document.getElementById('chat-input').focus(), 250);
+    } else {
+      panel.classList.remove('open');
+      star.classList.remove('active');
+      ipcRenderer.send('resize-window', { width: 85, height: 80 });
+    }
+  }
+
+  // ── VIEWS ──
+  function switchView(name, btn) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('view-' + name).classList.add('active');
+    if (btn) btn.classList.add('active');
+  }
+
+  // ── STATUS ──
+  function setStatus(state, text) {
+    const starEl = document.getElementById('star');
+    const sdot   = document.getElementById('star-dot');
+    const hdot   = document.getElementById('h-dot');
+    const htxt   = document.getElementById('h-status-text');
+
+    sdot.className = state !== 'idle' ? state : '';
+    hdot.className = 'h-dot' + (state !== 'idle' ? ' ' + state : '');
+    htxt.textContent = text;
+
+    const cls = [];
+    if (state !== 'idle') cls.push(state);
+    if (isOpen) cls.push('active');
+    starEl.className = cls.join(' ');
+  }
+
+  // ── CHAT ──
+  function handleKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  }
+
+  function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 75) + 'px';
+  }
+
+  function appendMessage(text, role) {
+    const c = document.getElementById('chat-messages');
+    const d = document.createElement('div');
+    d.className = 'msg ' + role;
+    d.textContent = text;
+    c.appendChild(d);
+    c.scrollTop = c.scrollHeight;
+  }
+
+  function showTyping() {
+    const c = document.getElementById('chat-messages');
+    const d = document.createElement('div');
+    d.className = 'msg typing'; d.id = 'typing-indicator';
+    d.innerHTML = '<div class="typing-dots"><span></span><span></span><span></span></div>';
+    c.appendChild(d); c.scrollTop = c.scrollHeight;
+  }
+
+  function removeTyping() {
+    const el = document.getElementById('typing-indicator');
+    if (el) el.remove();
+  }
+
+  function sendMessage() {
+    const input = document.getElementById('chat-input');
+    let text  = input.value.trim();
+    
+    // Sanitize and validate input
+    if (!text) {
+      appendMessage("Please enter a message.", 'bot');
+      return;
+    }
+    
+    // Limit message length to 500 characters
+    if (text.length > 500) {
+      text = text.substring(0, 500);
+      appendMessage("(Message truncated to 500 characters)", 'bot');
+    }
+    
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      appendMessage("Not connected to Django. Is the server running?", 'bot');
+      return;
+    }
+    
+    input.value = ''; 
+    input.style.height = 'auto';
+    appendMessage(text, 'user');
+    setStatus('thinking', 'Thinking…');
+    showTyping();
+    ws.send(JSON.stringify({ type: 'chat', data: { text } }));
+  }
+
+  // ── NOTES ACTION ──
+  window.noteAction = function(action, noteId = null) {
+    const title   = document.getElementById('note-title')?.value   || '';
+    const content = document.getElementById('note-content')?.value || '';
+
+    ws.send(JSON.stringify({
+      type: 'chat',
+      data: {
+        text: action,
+        meta: { action, note_id: noteId, title, content }
+      }
+    }));
+  }
+
+  // ── VOICE RECORDING ──
+  let audioContext;
+  let mediaRecorder;
+  let audioChunks = [];
+  let isListening = false;
+
+  async function toggleVoice() {
+      if (!isOpen) {
+          isOpen = true;
+          document.getElementById('panel').classList.add('open');
+          document.getElementById('star').classList.add('active');
+          ipcRenderer.send('resize-window', { width: 415, height: 470 });
+      }
+
+      // just tell Django to start recording
+      appendMessage("🎤 Listening...", 'user');
+      setStatus('working', 'Listening...');
+      document.getElementById('mic-btn').textContent = '🔴';
+
+      ws.send(JSON.stringify({
+          type: 'voice',
+          data: {}   // no audio data needed anymore
+      }));
+
+      // reset mic button after sending
+      setTimeout(() => {
+          document.getElementById('mic-btn').textContent = '🎤';
+          document.getElementById('mic-btn').classList.remove('listening');
+          setStatus('thinking', 'Transcribing...');
+      }, 500);
+  }
+  function closeApp() {
+    window.close();
+  }
+</script>
+</body>
+</html>
