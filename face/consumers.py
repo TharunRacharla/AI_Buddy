@@ -27,21 +27,10 @@ class ChatConsumer(WebsocketConsumer):
             data = text_data_json.get("data", {})
 
             if msg_type == "voice":
-                audio = data.get("audio", "")
-                if audio:
-                    threading.Thread(
-                        target=self.handle_voice,
-                        args=(audio,),
-                        daemon=True
-                    ).start()
+                if data.get("audio"):
+                    threading.Thread(target=self.handle_voice, args=(data.get("audio"),), daemon=True).start()
             elif msg_type == "chat":
-                text = data.get("text", "")
-                if isinstance(text, str) and text.strip():
-                    meta = data.get("meta", None)
-                    intent = detect_intent(text)
-                    self.handle_intent(intent, text, meta)
-                else:
-                    self.reply("Please enter a valid message.")
+                self._handle_text(data.get("text", ""), data.get("meta"))
             else:
                 self.reply("Unknown message type.")
         except json.JSONDecodeError:
@@ -57,13 +46,16 @@ class ChatConsumer(WebsocketConsumer):
         else:
             self.reply(f"You said: {text}")
 
-    def handle_voice(self, audio_base64):
-        # record and transcribe directly in Python
-        text = record_and_transcribe()
+    def _handle_text(self, text, meta=None):
+        if isinstance(text, str) and text.strip():
+            self.handle_intent(detect_intent(text), text, meta)
+        else:
+            self.reply("Please enter a valid message.")
 
+    def handle_voice(self, audio_base64):
+        text = record_and_transcribe()
         if text:
-            intent = detect_intent(text)
-            self.handle_intent(intent, text)
+            self._handle_text(text)
         else:
             self.reply("Sorry, I didn't catch that. Try again!")
 
@@ -125,15 +117,12 @@ class ChatConsumer(WebsocketConsumer):
 
     def _handle_wake(self):
         import traceback
-        text = ""
         try:
             print("_handle_wake: entered")
             text = record_and_transcribe()
             print(f"_handle_wake: record_and_transcribe returned: {repr(text)}")
             if text:
-                intent = detect_intent(text)
-                print(f"_handle_wake: detected intent: {intent}")
-                self.handle_intent(intent, text)
+                self._handle_text(text)
             else:
                 print("_handle_wake: no text transcribed")
                 self.reply("Sorry, I didn't catch that. Try again!")
