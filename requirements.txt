@@ -6,3 +6,10 @@ django-cors-headers
 djangorestframework
 channels
 daphne
+SpeechRecognition>=3.10
+PyAudio>=0.2.13
+openai-whisper>=20231117
+torch>=2.2
+transformers>=4.45
+pyttsx3>=2.90
+numpy>=1.26

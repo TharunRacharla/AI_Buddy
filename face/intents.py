@@ -1,3 +1,8 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
+
 def detect_intent(text):
     """Detect intent from user input with lightweight keyword matching first."""
     if not text or not isinstance(text, str):
@@ -25,6 +30,7 @@ def detect_intent(text):
         from .slm import classify_intent
         return classify_intent(text)
     except Exception:
+        logger.exception("Could not load intent classifier")
         return "chat"
 
 INTENTS = [

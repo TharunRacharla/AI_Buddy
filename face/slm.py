@@ -1,79 +1,109 @@
-from transformers import AutoModelForCausalLM, AutoTokenizer
-import torch
+import logging
+import threading
+
 from .intents import INTENTS
+
+logger = logging.getLogger(__name__)
 
 MODEL_NAME = "Qwen/Qwen3-0.6B"
 
-print("Loading SLM...")
-tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-model = AutoModelForCausalLM.from_pretrained(
-    MODEL_NAME,
-    dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
-    device_map="auto"
-)
-model.config.tie_word_embeddings = False
-print("SLM ready!")
+_model = None
+_tokenizer = None
+_model_lock = threading.Lock()
+_inference_lock = threading.Lock()
 
-def classify_intent(text):
-    """Classify user input into one of the defined intents.
-    
-    Args:
-        text: User input string to classify
-        
-    Returns:
-        str: Intent name or 'chat' if classification fails
-    """
-    # Final safety check
-    if not text or not isinstance(text, str):
-        return "chat"
-    
-    text = text.strip()
-    if not text:
-        return "chat"
-    
-    prompt = f"""You are an intent classifier for a desktop AI assistant.
-                Classify the user's command into exactly one of these intents:
-                {", ".join(INTENTS)}
 
-                Rules:
-                - Reply with ONLY the intent name, nothing else
-                - No explanation, no punctuation, just the intent
-                - If nothing matches, reply with: chat
+class ChatGenerationError(RuntimeError):
+    pass
 
-                User command: "{text}"
-                Intent:"""
 
-    messages = [{"role": "user", "content": prompt}]
+def _get_model():
+    global _model, _tokenizer
 
-    try:
-        input_text = tokenizer.apply_chat_template(
-            messages,
-            tokenize=False,
-            add_generation_prompt=True,
-            enable_thinking=False       # disable chain of thought
+    if _model is None or _tokenizer is None:
+        with _model_lock:
+            if _model is None or _tokenizer is None:
+                import torch
+                from transformers import AutoModelForCausalLM, AutoTokenizer
+
+                logger.info("Loading language model %s", MODEL_NAME)
+                tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+                model = AutoModelForCausalLM.from_pretrained(
+                    MODEL_NAME,
+                    dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+                    device_map="auto",
+                )
+                model.config.tie_word_embeddings = False
+                _tokenizer = tokenizer
+                _model = model
+                logger.info("Language model is ready")
+
+    return _tokenizer, _model
+
+
+def _generate(messages, max_new_tokens):
+    import torch
+
+    tokenizer, model = _get_model()
+    prompt = tokenizer.apply_chat_template(
+        messages,
+        tokenize=False,
+        add_generation_prompt=True,
+        enable_thinking=False,
+    )
+    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+
+    with _inference_lock, torch.inference_mode():
+        outputs = model.generate(
+            **inputs,
+            max_new_tokens=max_new_tokens,
+            do_sample=False,
         )
 
-        inputs = tokenizer(input_text, return_tensors="pt").to(model.device)
+    return tokenizer.decode(
+        outputs[0][inputs.input_ids.shape[1]:],
+        skip_special_tokens=True,
+    ).strip()
 
-        with torch.no_grad():
-            outputs = model.generate(
-                **inputs,
-                max_new_tokens=5,       # intent is always 1-2 words
-                do_sample=False,        # deterministic output
-                temperature=None,
-                top_p=None,
-            )
 
-        response = tokenizer.decode(
-            outputs[0][inputs.input_ids.shape[1]:],
-            skip_special_tokens=True
-        ).strip().lower()
-
-        print(f"SLM classified '{text}' → '{response}'")
-
-        # validate — if model returns something unexpected fall back to chat
-        return response if response in INTENTS else "chat"
-    
-    except Exception as e:
-        print(f"Error classifying intent: {e}")
+def classify_intent(text):
+    """Classify input into a known intent, falling back to chat on failure."""
+    if not isinstance(text, str) or not text.strip():
         return "chat"
+
+    prompt = f"""You are an intent classifier for a desktop AI assistant.
+Classify the user's command into exactly one of these intents:
+{", ".join(INTENTS)}
+
+Reply with only the intent name. If nothing matches, reply with: chat
+
+User command: {text.strip()}
+Intent:"""
+
+    try:
+        response = _generate([{"role": "user", "content": prompt}], 5).lower()
+        logger.debug("Intent classification completed: %s", response)
+        return response if response in INTENTS else "chat"
+    except Exception:
+        logger.exception("Intent classification failed")
+        return "chat"
+
+
+def generate_reply(text):
+    """Generate an assistant response or raise ChatGenerationError."""
+    if not isinstance(text, str) or not text.strip():
+        raise ValueError("A non-empty message is required")
+
+    try:
+        response = _generate(
+            [{"role": "user", "content": text.strip()}],
+            max_new_tokens=128,
+        )
+    except Exception as exc:
+        logger.exception("Chat response generation failed")
+        raise ChatGenerationError("The language model could not generate a response") from exc
+
+    if not response:
+        logger.error("Language model returned an empty chat response")
+        raise ChatGenerationError("The language model returned an empty response")
+    return response

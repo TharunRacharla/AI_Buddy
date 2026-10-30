@@ -4,7 +4,7 @@ const path = require('path');
 let mainWindow;
 
 function createWindow() {
-  const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+  const { height } = screen.getPrimaryDisplay().workAreaSize;
 
   mainWindow = new BrowserWindow({
     width: 85,
@@ -17,24 +17,30 @@ function createWindow() {
     resizable: false,
     skipTaskbar: false,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true,
       preload: path.join(__dirname, 'preload.js'),
-    allowRunningInsecureContent: true,   
-    webSecurity: false,   
     }
   });
 
-  mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
-    if (permission === 'media') callback(true);  // allow mic
-    else callback(false);
-  });
-  mainWindow.loadFile('index.html');
+  mainWindow.loadFile(path.join(__dirname, 'index.html'));
   mainWindow.setVisibleOnAllWorkspaces(true);
 }
 
 // Handle window resize from renderer
-ipcMain.on('resize-window', (event, { width, height }) => {
+ipcMain.on('resize-window', (event, bounds) => {
+  const { width, height } = bounds || {};
+  if (
+    !mainWindow ||
+    mainWindow.isDestroyed() ||
+    event.sender !== mainWindow.webContents ||
+    !((width === 85 && height === 80) || (width === 415 && height === 470))
+  ) {
+    console.warn('Rejected invalid resize-window request');
+    return;
+  }
+
   const { height: screenH } = screen.getPrimaryDisplay().workAreaSize;
 
   mainWindow.setBounds({
@@ -43,10 +49,6 @@ ipcMain.on('resize-window', (event, { width, height }) => {
     x: 20,                        // always stay on left side
     y: screenH - height - 20      // grow upward from bottom
   }, true);
-});
-
-ipcMain.on('drag-window', (event, { mouseX, mouseY }) => {
-  const [winX, winY] = mainWindow.getPosition();
 });
 
 app.whenReady().then(createWindow);

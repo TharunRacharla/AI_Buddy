@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>AI Buddy</title>
+<title>Novix</title>
 <style>
   @font-face {
     font-family: 'Nunito';
@@ -365,7 +365,6 @@
 </div>
 
 <script>
-  const { ipcRenderer } = window;
   let isOpen = false;
 
   // ── WEBSOCKET ──
@@ -409,12 +408,12 @@
     if (isOpen) {
       panel.classList.add('open');
       star.classList.add('active');
-      ipcRenderer.send('resize-window', { width: 415, height: 470 });
+      window.electronAPI.resizeWindow({ width: 415, height: 470 });
       setTimeout(() => document.getElementById('chat-input').focus(), 250);
     } else {
       panel.classList.remove('open');
       star.classList.remove('active');
-      ipcRenderer.send('resize-window', { width: 85, height: 80 });
+      window.electronAPI.resizeWindow({ width: 85, height: 80 });
     }
   }
 
@@ -529,7 +528,7 @@
           isOpen = true;
           document.getElementById('panel').classList.add('open');
           document.getElementById('star').classList.add('active');
-          ipcRenderer.send('resize-window', { width: 415, height: 470 });
+          window.electronAPI.resizeWindow({ width: 415, height: 470 });
       }
 
       // just tell Django to start recording

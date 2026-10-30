@@ -10,6 +10,8 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
+import os
+import secrets
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -19,13 +21,15 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-x=cl55%k5=y)$142_mk0-dac4^#d2*6fa7+3uq3j055ev@eu$t'
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY") or secrets.token_urlsafe(50)
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get("DJANGO_DEBUG", "false").strip().lower() in {"1", "true", "yes", "on"}
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.environ.get("DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")
+    if host.strip()
+]
 
 
 # Application definition
@@ -63,8 +67,40 @@ CHANNEL_LAYERS = {
     }
 }
 
-# Allow Electron to talk to Django
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get(
+        "DJANGO_CORS_ALLOWED_ORIGINS",
+        "http://127.0.0.1:8000,http://localhost:8000",
+    ).split(",")
+    if origin.strip()
+]
+
+SECURE_SSL_REDIRECT = os.environ.get(
+    "DJANGO_SECURE_SSL_REDIRECT", "false" if DEBUG else "true"
+).lower() in {
+    "1", "true", "yes", "on"
+}
+SECURE_HSTS_SECONDS = int(os.environ.get(
+    "DJANGO_SECURE_HSTS_SECONDS", "0" if DEBUG else "31536000"
+))
+SECURE_HSTS_INCLUDE_SUBDOMAINS = os.environ.get(
+    "DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS", "false"
+).lower() in {"1", "true", "yes", "on"}
+SECURE_HSTS_PRELOAD = os.environ.get(
+    "DJANGO_SECURE_HSTS_PRELOAD", "false"
+).lower() in {"1", "true", "yes", "on"}
+SESSION_COOKIE_SECURE = os.environ.get(
+    "DJANGO_SESSION_COOKIE_SECURE", "false" if DEBUG else "true"
+).lower() in {
+    "1", "true", "yes", "on"
+}
+CSRF_COOKIE_SECURE = os.environ.get(
+    "DJANGO_CSRF_COOKIE_SECURE", "false" if DEBUG else "true"
+).lower() in {
+    "1", "true", "yes", "on"
+}
+SECURE_CONTENT_TYPE_NOSNIFF = True
 
 ROOT_URLCONF = 'ai_buddy.urls'
 
@@ -138,3 +174,30 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+LOG_LEVEL = os.environ.get("DJANGO_LOG_LEVEL", "INFO").upper()
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+        },
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["console"],
+            "level": LOG_LEVEL,
+            "propagate": False,
+        },
+        "face": {
+            "handlers": ["console"],
+            "level": LOG_LEVEL,
+            "propagate": False,
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": LOG_LEVEL,
+    },
+}
