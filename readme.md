@@ -1,6 +1,20 @@
 # AI Buddy
 
-AI Buddy is a Django and Channels backend paired with an Electron desktop UI. It supports text chat, voice commands, and note-taking.
+AI Buddy is a desktop assistant built around a voice-to-action loop. Instead of living only in a browser tab, it combines an always-available Electron interface with a Django backend over a persistent Channels WebSocket connection. Say the wake word or type a message, and the assistant can respond, use local speech and language models, or open and manage notes in the desktop UI.
+
+## What makes it different
+
+- **Wake-word voice interaction:** A background listener can react to “Hey Buddy,” record a follow-up command, and pass it to the assistant.
+- **A live desktop connection:** Django Channels keeps the Electron UI and backend in real-time communication, so replies, status updates, and custom panels can be pushed to the app.
+- **Local model workflow:** Whisper handles speech transcription and a Qwen model classifies intents and generates chat replies. Models load when needed, rather than delaying ordinary startup.
+- **Actions, not only conversation:** Notes can be created, read, navigated, updated, and deleted through chat or voice commands.
+- **A desktop-first UI:** Electron provides a compact assistant panel with chat, activity status, voice input, and note views.
+
+Together, these pieces make AI Buddy an early desktop-agent prototype: voice and text are interfaces to actions, not just ways to send prompts.
+
+## Current scope
+
+Chat, voice, and notes are the implemented assistant flows. The other app categories sometimes associated with desktop assistants—such as file management, browsers, and media players—are not implemented yet.
 
 ## Requirements
 
