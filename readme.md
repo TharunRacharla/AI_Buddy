@@ -21,10 +21,11 @@ pip install -r requirements.txt
 python manage.py migrate
 ```
 
+The repository includes a private, ignored `.env` for this local checkout. For a fresh clone, copy `.env.example` to `.env` and replace `DJANGO_SECRET_KEY` with a unique random value before running the app.
+
 In one terminal, start Django:
 
 ```powershell
-$env:DJANGO_DEBUG = "true"
 python manage.py runserver 127.0.0.1:8000
 ```
 
@@ -40,7 +41,7 @@ The Qwen language model and Whisper models are downloaded on first use. Model do
 
 ## Configuration
 
-Settings can be provided through environment variables:
+Settings are loaded from the root `.env` file and can also be provided through environment variables. Process environment values take precedence:
 
 - `DJANGO_SECRET_KEY`: persistent secret key; set this for deployments.
 - `DJANGO_DEBUG`: defaults to `false`; set it to `true` for the local HTTP runserver shown above.
@@ -50,6 +51,6 @@ Settings can be provided through environment variables:
 - `DJANGO_SECURE_SSL_REDIRECT`, `DJANGO_SECURE_HSTS_SECONDS`, `DJANGO_SESSION_COOKIE_SECURE`, and `DJANGO_CSRF_COOKIE_SECURE`: production defaults enable HTTPS redirect, HSTS, and secure cookies.
 - `DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS` and `DJANGO_SECURE_HSTS_PRELOAD`: opt in only after confirming every affected hostname is served exclusively over HTTPS.
 
-Without `DJANGO_SECRET_KEY`, the app generates a temporary random key for that process; sessions and signed values will not persist across restarts. Set a persistent secret and explicit allowed hosts for deployments. Do not expose the local development server to untrusted networks.
+Set a persistent secret and explicit allowed hosts for deployments. Do not expose the local development server to untrusted networks.
 
 Application logs are written to the console. The manual microphone check is intentionally separate from Django's test suite and can be run with `python test_microphone.py`.
